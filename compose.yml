@@ -4,3 +4,6 @@ services:
     image: ghcr.io/bdsi-utwente/human-reading-assessment-api
     ports:
       - 8081:8000
+    env_file:
+      # edit .env.example with your environment variables
+      - .env
