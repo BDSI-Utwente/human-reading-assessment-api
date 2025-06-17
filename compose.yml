@@ -1,0 +1,6 @@
+services:
+  api:
+    build: .
+    image: ghcr.io/bdsi-utwente/human-reading-assessment-api
+    ports:
+      - 8081:8000
