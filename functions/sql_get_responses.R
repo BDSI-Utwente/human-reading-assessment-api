@@ -82,8 +82,8 @@ get_ability_estimate <- function(con, student_id, start = "", end = "") {
   .tbl <- tbl(con, "Answers")
 
   # empty start/end will translate to NA values
-  .start <- lubridate::as_datetime(start)
-  .end <- lubridate::as_datetime(end)
+  .start <- lubridate::as_datetime(start, tz = "UTC")
+  .end <- lubridate::as_datetime(end, tz = "UTC")
 
   # get response by student after start and before end
   .tbl |>
@@ -102,5 +102,5 @@ get_ability_estimate <- function(con, student_id, start = "", end = "") {
   .est_se <- rgamma(1, 4, 10)
 
   # return estimate
-  list(estimate = .est, se_estimate = .est_se)
+  list(estimate = .est, se_estimate = .est_se, start = .start, end = .end)
 }

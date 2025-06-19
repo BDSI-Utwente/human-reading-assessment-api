@@ -17,10 +17,20 @@ source(here("functions/sql_get_responses.R"))
 source(here("functions/sanity_get_texts_and_questions.R"))
 
 texts_cache <- tibble()
-texts_cache_timestamp = NULL
+params_cache <- tibble()
+cache_timestamp = NULL
+
+.check_cache <- function() {
+  if (
+    is.null(cache_timestamp) ||
+      (lubridate::now() - cache_timestamp) > lubridate::days(1)
+  ) {
+    update_texts_cache()
+  }
+}
 
 #* @post /refresh_texts_cache
-#* @serializer json
+#* @serializer unboxedJSON
 #* @response 200 timestamp and contents of refreshed texts cache
 #* Trigger a refresh of the texts cache
 #*
@@ -34,22 +44,23 @@ update_texts_cache <- function(req, res) {
 
   texts_cache <<- questions_cache |>
     distinct(sanity_text_id)
-  texts_cache_timestamp <<- lubridate::now()
+
+  cache_timestamp <<- lubridate::now()
 
   list(
-    msg = I("Text cache was successfully updated."),
+    msg = I("Text cache was succesfully updated."),
     texts = texts_cache$sanity_text_id,
-    timestamp = I(texts_cache_timestamp)
+    timestamp = lubridate::format_ISO8601(lubridate::with_tz(
+      cache_timestamp,
+      "UTC"
+    ))
   )
 }
-# run once to initialize
-update_texts_cache()
-
 
 #* @param user_id:int*
 #* @get /next_text
 #* @serializer unboxedJSON
-#* @response 200 next_item_id, texts_cache_timestamp and elapsed_time
+#* @response 200 next_text_id, cache_timestamp and elapsed_time
 #* Get next text id
 #*
 #* Get next text id for the provided user. Uses texts_cache as the source
@@ -57,8 +68,9 @@ update_texts_cache()
 #* randomly samples an eligible unseen text. Sampling weights are inversely
 #* proportional to overall exposure, to ensure an even exposure across texts.
 function(req, res, user_id) {
-  con <- create_db_connection()
   .start <- lubridate::now()
+  con <- create_db_connection()
+  .check_cache()
 
   if (user_id < 0) {
     stop("A valid user id is required.")
@@ -70,7 +82,10 @@ function(req, res, user_id) {
 
   list(
     next_text_id = next_text_id,
-    texts_cache_timestamp = lubridate::format_ISO8601(texts_cache_timestamp),
+    cache_timestamp = lubridate::format_ISO8601(lubridate::with_tz(
+      cache_timestamp,
+      "UTC"
+    )),
     elapsed_time = as.numeric(lubridate::now() - .start)
   )
 }
@@ -86,9 +101,11 @@ function(req, res, user_id) {
 #* @param user_id:int*
 #* @param start:string
 #* @param end:string
+#* @serializer unboxedJSON
 function(req, res, user_id, start = "", end = "") {
-  con <- create_db_connection()
   .start <- lubridate::now()
+  con <- create_db_connection()
+  .check_cache()
 
   if (user_id < 0) {
     stop("A valid user id is required.")
@@ -101,6 +118,10 @@ function(req, res, user_id, start = "", end = "") {
   dbDisconnect(con)
 
   # return estimate
-  estimate$elapsed_time <- as.numeric(lubridate::now) - .start
+  estimate$elapsed_time <- as.numeric(lubridate::now() - .start)
+  estimate$cache_timestamp <- lubridate::format_ISO8601(lubridate::with_tz(
+    cache_timestamp,
+    "UTC"
+  ))
   return(estimate)
 }
