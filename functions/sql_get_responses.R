@@ -5,11 +5,12 @@ library(RMariaDB)
 
 # create sql backend
 create_db_connection <- function(
-    host = Sys.getenv("DB_HOST"),
-    port = Sys.getenv("DB_PORT"),
-    user = Sys.getenv("DB_USER"),
-    password = Sys.getenv("DB_PASS"),
-    dbname = Sys.getenv("DB_NAME")) {
+  host = Sys.getenv("DB_HOST"),
+  port = Sys.getenv("DB_PORT"),
+  user = Sys.getenv("DB_USER"),
+  password = Sys.getenv("DB_PASS"),
+  dbname = Sys.getenv("DB_NAME")
+) {
   DBI::dbConnect(
     RMariaDB::MariaDB(),
     host = host,
@@ -75,4 +76,31 @@ get_next_text_id <- function(con, student_id, texts) {
 
   # randomly sample an item id
   sample(weights$sanity_text_id, 1, prob = weights$weight)
+}
+
+get_ability_estimate <- function(con, student_id, start = "", end = "") {
+  .tbl <- tbl(con, "Answers")
+
+  # empty start/end will translate to NA values
+  .start <- lubridate::as_datetime(start)
+  .end <- lubridate::as_datetime(end)
+
+  # get response by student after start and before end
+  .tbl |>
+    filter(
+      student_id == .env$student_id,
+      is.na(.env$.start) || created_at >= .env$.start,
+      is.na(.env$.end) || created_at <= .env$.end
+    )
+
+  # get irt model and obtain estimate
+  # TODO: implement irt model cache
+  # TODO: implement estimate routine
+  .est <- rnorm(1, 0, 1)
+
+  # normal-ish around 0.4, sd 0.2
+  .est_se <- rgamma(1, 4, 10)
+
+  # return estimate
+  list(estimate = .est, se_estimate = .est_se)
 }

@@ -3,8 +3,9 @@ library(tidyverse)
 
 
 get_question_metadata <- function(
-    token = Sys.getenv("SANITY_TOKEN"),
-    project_id = Sys.getenv("SANITY_PROJECT_ID")) {
+  token = Sys.getenv("SANITY_TOKEN"),
+  project_id = Sys.getenv("SANITY_PROJECT_ID")
+) {
   query_url <- glue::glue(
     "https://{project_id}.api.sanity.io/v2025-06-03/data/query/production"
   )
@@ -20,11 +21,11 @@ get_question_metadata <- function(
     resp_body_json() |>
     pluck("result") |>
     # attach item._id to each question, and return only questions
-    map(\(item) {
-      .item_id <- item$`_id`
-      item$questions |>
+    map(\(text) {
+      .text_id <- text$`_id`
+      text$questions |>
         map(\(q) {
-          q$item_id <- .item_id
+          q$sanity_text_id <- .text_id
           q
         })
     }) |>
@@ -42,8 +43,8 @@ extract_question_metadata <- function(q) {
   # basic info
   .extract_question_info <- function(q) {
     tibble_row(
-      item_id = q$item_id,
-      question_id = q$`_key`,
+      sanity_text_id = q$sanity_text_id,
+      sanity_question_key = q$`_key`,
       type = q$type
     )
   }
@@ -51,18 +52,57 @@ extract_question_metadata <- function(q) {
   # ability questions
   .extract_multi_choice <- function(q) {
     .answers <- q$answers |>
-      map(\(a) tibble_row(answer_id = a$`_key`, correct = a$isCorrect)) |>
+      map(\(a) {
+        tibble_row(sanity_option_key = a$`_key`, correct = a$isCorrect)
+      }) |>
       list_rbind()
 
+    # create dummy parameters
+    # TODO: parse real parameters from response
+    .params <- tibble_row(
+      model = "2pl",
+      difficulty = rnorm(1),
+      discrimination = rlnorm(1, -0.4, 0.2)
+    )
+
     .extract_question_info(q) |>
-      mutate(answers = list(.answers), scale = "ability")
+      mutate(
+        answers = list(.answers),
+        params = list(.params),
+        scale = "ability"
+      )
   }
+
   # checkboxes is identical to multiChoice, it just allows multiple answers to be correct
-  .extract_checkboxes <- .extract_multi_choice
+  .extract_checkboxes <- function(q) {
+    .answers <- q$answers |>
+      map(\(a) {
+        tibble_row(sanity_option_key = a$`_key`, correct = a$isCorrect)
+      }) |>
+      list_rbind()
+
+    # create dummy parameters
+    # TODO: parse real parameters from response
+    .params <- tibble(
+      answer_id = .answers$sanity_option_key,
+      model = "2pl",
+      difficulty = rnorm(nrow(.answers)),
+      discrimination = rlnorm(nrow(.answers), -0.4, 0.2)
+    )
+
+    .extract_question_info(q) |>
+      mutate(
+        answers = list(.answers),
+        params = list(.params),
+        scale = "ability"
+      )
+  }
+
   .extract_freetext <- function(q) {
     .extract_question_info(q) |>
       mutate(scale = "ability")
   }
+
   # trueOrFalse is actually identical to checkboxes, and also appears to allows multiple binary statements
   .extract_true_or_false <- .extract_checkboxes
 

@@ -1,24 +1,25 @@
 library(plumber)
 library(here)
+library(tidyverse)
 here::i_am("main.R")
 
 dotenv::load_dot_env(here(".env"))
 
 stopifnot(sanity_token = !(Sys.getenv("SANITY_TOKEN") == ""))
 stopifnot(sanity_project_id = !(Sys.getenv("SANITY_PROJECT_ID") == ""))
-stopifnot(db_host = !(Sys.getenv("STAGING_DB_HOST") == ""))
-stopifnot(db_port = !(Sys.getenv("STAGING_DB_PORT") == ""))
-stopifnot(db_user = !(Sys.getenv("STAGING_DB_USER") == ""))
-stopifnot(db_pass = !(Sys.getenv("STAGING_DB_PASS") == ""))
-stopifnot(db_name = !(Sys.getenv("STAGING_DB_NAME") == ""))
+stopifnot(db_host = !(Sys.getenv("DB_HOST") == ""))
+stopifnot(db_port = !(Sys.getenv("DB_PORT") == ""))
+stopifnot(db_user = !(Sys.getenv("DB_USER") == ""))
+stopifnot(db_pass = !(Sys.getenv("DB_PASS") == ""))
+stopifnot(db_name = !(Sys.getenv("DB_NAME") == ""))
 
 source(here("functions/sql_get_responses.R"))
 source(here("functions/sanity_get_texts_and_questions.R"))
 
-texts <- tibble()
+texts_cache <- tibble()
 texts_cache_timestamp = NULL
 
-#* @get /refresh_texts_cache
+#* @post /refresh_texts_cache
 #* @serializer json
 #* @response 200 timestamp and contents of refreshed texts cache
 #* Trigger a refresh of the texts cache
@@ -26,14 +27,18 @@ texts_cache_timestamp = NULL
 #* Triggers a refresh of the texts cache from sanity CMS. This
 #* should happen automatically periodically in normal circumstances.
 update_texts_cache <- function(req, res) {
-  texts <<- get_question_metadata() |>
-    distinct(item_id) |>
-    rename(sanity_text_id = item_id)
+  questions_cache <<- get_question_metadata()
+
+  params_cache <<- questions_cache |>
+    unnest(params, keep_empty = TRUE)
+
+  texts_cache <<- questions_cache |>
+    distinct(sanity_text_id)
   texts_cache_timestamp <<- lubridate::now()
 
   list(
     msg = I("Text cache was successfully updated."),
-    texts = texts$sanity_text_id,
+    texts = texts_cache$sanity_text_id,
     timestamp = I(texts_cache_timestamp)
   )
 }
@@ -60,7 +65,7 @@ function(req, res, user_id) {
   }
 
   # TODO: Check if user id exists?
-  next_text_id = get_next_text_id(con, user_id, texts)
+  next_text_id = get_next_text_id(con, user_id, texts_cache)
   DBI::dbDisconnect(con)
 
   list(
@@ -68,4 +73,34 @@ function(req, res, user_id) {
     texts_cache_timestamp = lubridate::format_ISO8601(texts_cache_timestamp),
     elapsed_time = as.numeric(lubridate::now() - .start)
   )
+}
+
+#* Get ability estimate
+#*
+#* Obtain ability estimate for the given user_id, for responses within the
+#* given timeframe. If start or end are not given, the time frame will be
+#* open-ended. If neither start nor end are given, all responses by that
+#* user will be used.
+#*
+#* @get /ability_estimate
+#* @param user_id:int*
+#* @param start:string
+#* @param end:string
+function(req, res, user_id, start = "", end = "") {
+  con <- create_db_connection()
+  .start <- lubridate::now()
+
+  if (user_id < 0) {
+    stop("A valid user id is required.")
+  }
+
+  # get estimate
+  estimate <- get_ability_estimate(con, user_id, start, end)
+
+  # disconnect
+  dbDisconnect(con)
+
+  # return estimate
+  estimate$elapsed_time <- as.numeric(lubridate::now) - .start
+  return(estimate)
 }
