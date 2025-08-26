@@ -3,8 +3,12 @@ library(here)
 library(tidyverse)
 here::i_am("main.R")
 
-dotenv::load_dot_env(here(".env"))
+# if we're on a development environment, AND a .env file exists - load that
+if (Sys.getenv("ENVIRONMENT") == "DEVELOPMENT" && file.exists(here(".env"))) {
+  dotenv::load_dot_env(here(".env"))
+}
 
+# in all cases, we MUST have all the required env values set somehow
 stopifnot(sanity_token = !(Sys.getenv("SANITY_TOKEN") == ""))
 stopifnot(sanity_project_id = !(Sys.getenv("SANITY_PROJECT_ID") == ""))
 stopifnot(db_host = !(Sys.getenv("DB_HOST") == ""))
