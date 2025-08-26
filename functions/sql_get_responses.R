@@ -47,21 +47,43 @@ create_db_connection <- function(
 #' to the current student. Items are weighted inversely to their
 #' exposure rate to encourage roughly uniform exposure during
 #' testing.
-get_next_text_id <- function(con, student_id, texts) {
+get_next_text_id <- function(
+  con,
+  student_id,
+  texts,
+  required_text_ids = NULL,
+  mutually_exclusive_item_sets = NULL
+) {
   # we'll be matching local and remote data sources, so collect
   # all the remote data to local first.
   .tbl <- tbl(con, "Answers")
-
-  # get response counts for all texts
-  response_counts <- .tbl |>
-    distinct(student_id, sanity_text_id) |>
-    count(sanity_text_id) |>
-    collect()
 
   # get list of texts seen by this student
   texts_seen <- .tbl |>
     filter(student_id == student_id) |>
     distinct(sanity_text_id) |>
+    collect()
+
+  # if we have a list of required texts, first make sure the student
+  # has seen all these
+  if (!is.null(required_text_ids)) {
+    for (required_text_id in required_text_ids) {
+      # if the required text id exists, AND we've not seen it yet...
+      if (
+        required_text_id %in%
+          texts$sanity_text_id &&
+          !(required_text_id %in% texts_seen$sanity_text_id)
+      ) {
+        # then this should be our next text/question
+        return(required_text_id)
+      }
+    }
+  }
+
+  # get response counts for all texts
+  response_counts <- .tbl |>
+    distinct(student_id, sanity_text_id) |>
+    count(sanity_text_id) |>
     collect()
 
   weights <- response_counts |>
@@ -74,7 +96,21 @@ get_next_text_id <- function(con, student_id, texts) {
     # calculate weights based on inverse exposure rate (+1)
     transmute(sanity_text_id, weight = 1 / (n + 1))
 
-  # randomly sample an item id
+  # if there are items that are mutually exclusive, make sure we dis-
+  # allow any other questions if any question in the exclusive set has
+  # been seen.
+  if (!is.null(mutually_exclusive_item_sets)) {
+    for (exclusive_set in mutually_exclusive_item_sets) {
+      # if any of a set has been seen
+      if (any(exclusive_set %in% texts_seen$sanity_text_id)) {
+        # remove all items in the set from the available choices
+        weights <- weights |>
+          filter(!(sanity_text_id %in% exclusive_set))
+      }
+    }
+  }
+
+  # randomly sample an item id from the remaining available items
   sample(weights$sanity_text_id, 1, prob = weights$weight)
 }
 

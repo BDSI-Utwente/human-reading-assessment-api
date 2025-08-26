@@ -3,6 +3,23 @@ library(here)
 library(tidyverse)
 here::i_am("main.R")
 
+# TODO: expose required text ids as an environment variable?
+REQUIRED_TEXT_IDS = c(
+  "id-test-13",
+  "id-test-14",
+  "id-test-15",
+  "id-test-16"
+)
+
+# TODO: idem for mutually exclusive sets of items?
+MUTUALLY_EXCLUSIVE_ITEM_SETS = list(
+  # Some random test items
+  c("id-test-1", "id-test-2"),
+
+  # Some other random test items
+  c("id-test-12", "id-test-22")
+)
+
 # if we're on a development environment, AND a .env file exists - load that
 if (Sys.getenv("ENVIRONMENT") == "DEVELOPMENT" && file.exists(here(".env"))) {
   dotenv::load_dot_env(here(".env"))
@@ -81,7 +98,7 @@ function(req, res, user_id) {
   }
 
   # TODO: Check if user id exists?
-  next_text_id = get_next_text_id(con, user_id, texts_cache)
+  next_text_id = get_next_text_id(con, user_id, texts_cache, REQUIRED_TEXT_IDS)
   DBI::dbDisconnect(con)
 
   list(
@@ -119,7 +136,7 @@ function(req, res, user_id, start = "", end = "") {
   estimate <- get_ability_estimate(con, user_id, start, end)
 
   # disconnect
-  dbDisconnect(con)
+  DBI::dbDisconnect(con)
 
   # return estimate
   estimate$elapsed_time <- as.numeric(lubridate::now() - .start)
