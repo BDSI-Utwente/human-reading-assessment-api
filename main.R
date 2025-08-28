@@ -5,19 +5,20 @@ here::i_am("main.R")
 
 # TODO: expose required text ids as an environment variable?
 REQUIRED_TEXT_IDS = c(
-  "id-test-13",
-  "id-test-14",
-  "id-test-15",
-  "id-test-16"
+  # "Vil du hjelpe oss med forskningen vår?"
+  "91b545bd-9dad-42d8-aa78-a650f31ed6e8"
 )
 
 # TODO: idem for mutually exclusive sets of items?
 MUTUALLY_EXCLUSIVE_ITEM_SETS = list(
-  # Some random test items
-  c("id-test-1", "id-test-2"),
+  # Single set of closed vs. constructed response items
+  c(
+    "927cf520-4b0b-4714-8c3d-80f4c3bdaae5",
+    "3f7d5788-240a-46a6-9028-64f460d82ec8"
+  )
 
   # Some other random test items
-  c("id-test-12", "id-test-22")
+  # c("id-test-12", "id-test-22")
 )
 
 # if we're on a development environment, AND a .env file exists - load that
