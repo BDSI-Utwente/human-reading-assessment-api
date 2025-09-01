@@ -8,7 +8,7 @@ The Computerized Adaptive Testing API is packaged as a Docker container. The API
 
 ### Environment
 
-The API requires the below environment variables to be supplied.
+The API requires the below environment variables to be supplied. All variables are required, with the exception of DB_HOST/DB_PORT and DB_SOCKET, where either the host/port or the socket needs to be set. If both are set, the socket takes precendence.
 
 ```sh
 # Sanity configuration for text and question data
@@ -16,11 +16,15 @@ SANITY_TOKEN=YOUR_SANITY_TOKEN_HERE
 SANITY_PROJECT_ID=YOUR_SANITY_PROJECT_ID_HERE
 
 # Database configuration for response records
-DB_HOST=localhost
-DB_PORT=3306
 DB_USER=username
 DB_PASS=password
 DB_NAME=database_name
+
+DB_HOST=localhost
+DB_PORT=3306
+
+# if a socket is set, that takes precedence
+# DB_SOCKET=YOUR_SOCKET_HERE
 ```
 
 In a development environment, if the environment variable `ENVIRONMENT` is set to `DEVELOPMENT`, and the file `.env` exists next to the main R script, the script will attempt to load environment variables from this file. 
