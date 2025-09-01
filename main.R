@@ -96,6 +96,10 @@ function(req, res, user_id, n_texts = 2) {
   con <- create_db_connection()
   .check_cache()
 
+  # cast input types
+  user_id <- as.integer(user_id)
+  n_texts <- as.integer(n_texts)
+
   if (user_id < 0) {
     stop("A valid user id is required.")
   }
