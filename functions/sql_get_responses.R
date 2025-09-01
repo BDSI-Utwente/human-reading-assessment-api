@@ -146,6 +146,22 @@ get_next_text_ids <- function(
   # TODO: validate that this naive approach doesn't unduly bias average
   # exposure of items in exclusive sets.
 
+  # Error on length(options) < n
+  if (length(options) < n) {
+    stop("Number of options is smaller than sample size!")
+  }
+
+  # The sample function has a nasty built-in ambiguity when options is
+  # numeric and of length 1. To avoid this, we can simply implement a
+  # `resample` function as per the docs for `sample`, but a simpler
+  # solution is to simply directly return when length(options) == n.
+  if (length(options) == n) {
+    if (.items_are_mutually_exclusive(options, exclusive_sets)) {
+      warning("The only available options are mutually exclusive!")
+    }
+    return(options)
+  }
+
   .attempt <- 1
   .res <- sample(options, n, FALSE, weights)
 
