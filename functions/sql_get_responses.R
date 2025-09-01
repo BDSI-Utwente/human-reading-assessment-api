@@ -5,26 +5,43 @@ library(RMariaDB)
 
 # create sql backend
 create_db_connection <- function(
-  host = Sys.getenv("DB_HOST"),
-  port = Sys.getenv("DB_PORT"),
   user = Sys.getenv("DB_USER"),
   password = Sys.getenv("DB_PASS"),
-  dbname = Sys.getenv("DB_NAME")
+  dbname = Sys.getenv("DB_NAME"),
+  host = Sys.getenv("DB_HOST"),
+  port = Sys.getenv("DB_PORT"),
+  socket = Sys.getenv("DB_SOCKET")
 ) {
-  DBI::dbConnect(
-    RMariaDB::MariaDB(),
-    host = host,
-    port = port,
-    user = user,
-    password = password,
-    dbname = dbname,
+  # if socket is set, use that
+  if (socket != "") {
+    DBI::dbConnect(
+      RMariaDB::MariaDB(),
+      socket = socket,
+      user = user,
+      password = password,
+      dbname = dbname,
 
-    # be specific that we expect a MySQL backend
-    mysql = TRUE,
+      # we expect a MySQL backend
+      mysql = TRUE
+    )
 
-    # enforce SSL (but don't check certificates)
-    client.flag = RMariaDB::CLIENT_SSL
-  )
+    # otherwise, use host/port
+  } else {
+    DBI::dbConnect(
+      RMariaDB::MariaDB(),
+      host = host,
+      port = port,
+      user = user,
+      password = password,
+      dbname = dbname,
+
+      # be specific that we expect a MySQL backend
+      mysql = TRUE,
+
+      # enforce SSL (but don't check certificates)
+      client.flag = RMariaDB::CLIENT_SSL
+    )
+  }
 }
 
 # we have answers for each user-text-question-option pair,
@@ -47,12 +64,12 @@ create_db_connection <- function(
 #' to the current student. Items are weighted inversely to their
 #' exposure rate to encourage roughly uniform exposure during
 #' testing.
-get_next_text_id <- function(
+get_next_text_ids <- function(
   con,
   student_id,
   texts,
-  required_text_ids = NULL,
-  mutually_exclusive_item_sets = NULL
+  mutually_exclusive_item_sets = NULL,
+  n_texts = 2
 ) {
   # we'll be matching local and remote data sources, so collect
   # all the remote data to local first.
@@ -63,22 +80,6 @@ get_next_text_id <- function(
     filter(student_id == student_id) |>
     distinct(sanity_text_id) |>
     collect()
-
-  # if we have a list of required texts, first make sure the student
-  # has seen all these
-  if (!is.null(required_text_ids)) {
-    for (required_text_id in required_text_ids) {
-      # if the required text id exists, AND we've not seen it yet...
-      if (
-        required_text_id %in%
-          texts$sanity_text_id &&
-          !(required_text_id %in% texts_seen$sanity_text_id)
-      ) {
-        # then this should be our next text/question
-        return(required_text_id)
-      }
-    }
-  }
 
   # get response counts for all texts
   response_counts <- .tbl |>
@@ -110,8 +111,71 @@ get_next_text_id <- function(
     }
   }
 
-  # randomly sample an item id from the remaining available items
-  sample(weights$sanity_text_id, 1, prob = weights$weight)
+  # randomly sample item ids from the remaining available items,
+  # using a naive constrained sampler if needed.
+  if (!is.null(mutually_exclusive_item_sets)) {
+    ids <- .constrained_sample(
+      options = weights$sanity_text_id,
+      weights = weights$weight,
+      n = n_texts,
+      exclusive_sets = mutually_exclusive_item_sets
+    )
+  } else {
+    ids <- sample(
+      weights$sanity_text_id,
+      size = n_texts,
+      prob = weights$weight
+    )
+  }
+
+  return(ids)
+}
+
+.constrained_sample <- function(
+  options,
+  weights,
+  n,
+  exclusive_sets,
+  max_attempts = 50
+) {
+  # note that we're more likely to throw away items that are in exclusive
+  # sets, possibly leading to them being underexposed. I'm relying on the
+  # fact that we'll be weighting by exposure to balance out this effect
+  # in the long term - but we will want to validate that this works in
+  # practice, probably through simulation.
+  # TODO: validate that this naive approach doesn't unduly bias average
+  # exposure of items in exclusive sets.
+
+  .attempt <- 1
+  .res <- sample(options, n, FALSE, weights)
+
+  while (.attempt < max_attempts) {
+    if (.items_are_mutually_exclusive(.res, exclusive_sets)) {
+      .res <- sample(options, n, FALSE, weights)
+      .attempt <- .attempt + 1
+    } else {
+      return(.res)
+    }
+  }
+
+  warning(
+    "Could not find non-mutually exclusive items in ",
+    .attempt,
+    " iterations, returning final attempt."
+  )
+  return(.res)
+}
+
+.items_are_mutually_exclusive <- function(items, mutually_exclusive_item_sets) {
+  for (exclusive_set in mutually_exclusive_item_sets) {
+    if (sum(items %in% exclusive_set) >= 2) {
+      # at least two items are mutually exclusive
+      return(TRUE)
+    }
+  }
+
+  # no matches, we're good
+  return(FALSE)
 }
 
 get_ability_estimate <- function(con, student_id, start = "", end = "") {

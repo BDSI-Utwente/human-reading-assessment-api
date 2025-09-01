@@ -3,12 +3,6 @@ library(here)
 library(tidyverse)
 here::i_am("main.R")
 
-# TODO: expose required text ids as an environment variable?
-REQUIRED_TEXT_IDS = c(
-  # "Vil du hjelpe oss med forskningen vår?"
-  "91b545bd-9dad-42d8-aa78-a650f31ed6e8"
-)
-
 # TODO: idem for mutually exclusive sets of items?
 MUTUALLY_EXCLUSIVE_ITEM_SETS = list(
   # Single set of closed vs. constructed response items
@@ -29,11 +23,18 @@ if (Sys.getenv("ENVIRONMENT") == "DEVELOPMENT" && file.exists(here(".env"))) {
 # in all cases, we MUST have all the required env values set somehow
 stopifnot(sanity_token = !(Sys.getenv("SANITY_TOKEN") == ""))
 stopifnot(sanity_project_id = !(Sys.getenv("SANITY_PROJECT_ID") == ""))
-stopifnot(db_host = !(Sys.getenv("DB_HOST") == ""))
-stopifnot(db_port = !(Sys.getenv("DB_PORT") == ""))
 stopifnot(db_user = !(Sys.getenv("DB_USER") == ""))
 stopifnot(db_pass = !(Sys.getenv("DB_PASS") == ""))
 stopifnot(db_name = !(Sys.getenv("DB_NAME") == ""))
+
+# we MUST have a socket or a HOST/PORT combo
+socket_set = (Sys.getenv("DB_SOCKET") != "")
+host_set = (Sys.getenv("DB_HOST") != "")
+port_set = (Sys.getenv("DB_PORT") != "")
+
+if (!socket_set && !(host_set && port_set)) {
+  stop("either 'DB_SOCKET' or 'DB_HOST' and 'DB_PORT' must be set")
+}
 
 source(here("functions/sql_get_responses.R"))
 source(here("functions/sanity_get_texts_and_questions.R"))
@@ -80,7 +81,8 @@ update_texts_cache <- function(req, res) {
 }
 
 #* @param user_id:int*
-#* @get /next_text
+#* @param n_texts:int
+#* @get /next_texts
 #* @serializer unboxedJSON
 #* @response 200 next_text_id, cache_timestamp and elapsed_time
 #* Get next text id
@@ -89,7 +91,7 @@ update_texts_cache <- function(req, res) {
 #* for available texts, disregards texts the user has already seen, then
 #* randomly samples an eligible unseen text. Sampling weights are inversely
 #* proportional to overall exposure, to ensure an even exposure across texts.
-function(req, res, user_id) {
+function(req, res, user_id, n_texts = 2) {
   .start <- lubridate::now()
   con <- create_db_connection()
   .check_cache()
@@ -99,11 +101,17 @@ function(req, res, user_id) {
   }
 
   # TODO: Check if user id exists?
-  next_text_id = get_next_text_id(con, user_id, texts_cache, REQUIRED_TEXT_IDS)
+  next_text_ids = get_next_text_ids(
+    con = con,
+    student_id = user_id,
+    texts = texts_cache,
+    mutually_exclusive_item_sets = MUTUALLY_EXCLUSIVE_ITEM_SETS,
+    n_texts = n_texts
+  )
   DBI::dbDisconnect(con)
 
   list(
-    next_text_id = next_text_id,
+    next_text_ids = next_text_ids,
     cache_timestamp = lubridate::format_ISO8601(lubridate::with_tz(
       cache_timestamp,
       "UTC"
