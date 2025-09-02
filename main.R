@@ -3,16 +3,25 @@ library(here)
 library(tidyverse)
 here::i_am("main.R")
 
-# TODO: idem for mutually exclusive sets of items?
+# TODO: allow mutually exclusive item sets to be supplied at runtime?
 MUTUALLY_EXCLUSIVE_ITEM_SETS = list(
-  # Single set of closed vs. constructed response items
+  # Fakta om mat og andre greier
   c(
     "927cf520-4b0b-4714-8c3d-80f4c3bdaae5",
     "3f7d5788-240a-46a6-9028-64f460d82ec8"
-  )
+  ),
 
-  # Some other random test items
-  # c("id-test-12", "id-test-22")
+  # Solenergi
+  c(
+    "7692bfef-fef9-44be-9236-91cd8e17dc0a",
+    "1eae341e-6948-476c-9df8-aa758993d147"
+  ),
+
+  # Minecraft
+  c(
+    "ffffece4-14da-4ed0-819a-a7039a0101d1",
+    "d6f8be0b-09bc-4a6b-bc3a-81935f1e408a"
+  )
 )
 
 # if we're on a development environment, AND a .env file exists - load that
