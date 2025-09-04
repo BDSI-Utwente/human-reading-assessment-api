@@ -16,7 +16,7 @@ create_db_connection <- function(
   if (socket != "") {
     DBI::dbConnect(
       RMariaDB::MariaDB(),
-      socket = socket,
+      unix.socket = socket,
       user = user,
       password = password,
       dbname = dbname,
