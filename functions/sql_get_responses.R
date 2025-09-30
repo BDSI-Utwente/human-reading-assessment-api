@@ -77,7 +77,7 @@ get_next_text_ids <- function(
 
   # get list of texts seen by this student
   texts_seen <- .tbl |>
-    filter(student_id == student_id) |>
+    filter(student_id == .env$student_id) |>
     distinct(sanity_text_id) |>
     collect()
 
