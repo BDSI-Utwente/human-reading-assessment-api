@@ -1,6 +1,27 @@
 library(httr2)
 library(tidyverse)
 
+get_question_titles <- function(
+  token = Sys.getenv("SANITY_TOKEN"),
+  project_id = Sys.getenv("SANITY_PROJECT_ID")
+) {
+  query_url <- glue::glue(
+    "https://{project_id}.api.sanity.io/v2025-06-03/data/query/production"
+  )
+
+  response <- httr2::request(query_url) |>
+    req_auth_bearer_token(Sys.getenv("SANITY_TOKEN")) |>
+    req_url_query(
+      query = "*[_type == \"testItem\"]{_id, title}"
+    ) |>
+    req_perform()
+  response |>
+    resp_body_json() |>
+    pluck("result") |>
+    map(as_tibble_row) |>
+    list_rbind() |>
+    rename(sanity_text_id = `_id`)
+}
 
 get_question_metadata <- function(
   token = Sys.getenv("SANITY_TOKEN"),
