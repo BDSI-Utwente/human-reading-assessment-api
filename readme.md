@@ -1,3 +1,12 @@
+---
+author: Karel Kroeze <k.a.kroeze@utwente.nl>
+date: 2025-10-03
+changelog: 
+    - date: 2025-10-03
+      desc: added basic dev/deploy instructions
+---
+
+
 # HUMAN Reading Assessment API
 
 This repository is part of the research project HUMAN Reading Assessment, a consortium with the University of Stavanger, Norway, and the University of Twente, the Netherlands. 
@@ -38,3 +47,35 @@ The recommended procedure is to create copies of `.env.example` and `compose.yml
 ### API docs
 
 The docker container exposes Swagger documentation for all exposed endpoints at `.../__docs__/`. 
+
+## Development
+
+The main scripts are set up to automatically use a local `.env` file at runtime, however you may have to load environment variables during development using `dotenv::load_env(...file...)`. You will have to obtain credentials from @Karel-Kroeze or Runar/Lukas at Grensesnitt.
+
+The api is packaged as a docker container and published on ghcr.io. To run, build, and update container images you will need to have docker along with the docker-compose plugin avialable (or an equivalent alternative). With a terminal open in the project folder, you should then be able to run `docker compose` commands to build and run the image; 
+
+```
+# build the image
+docker compose build 
+
+# run the image for a local server 
+# add --build and/or -d options to rebuild the image and detach from the container outputs, respectively:
+docker compose up [--build] [-d]
+```
+
+To push changes to the container registry, you will have to create a github token, authenticate the docker cli, and link the container to the ghcr.io registry. Follow the instructions for authenticating with a (classic) personal token here: <https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry#authenticating-with-a-personal-access-token-classic>
+
+Note that you will need to have write permissions to the BDSi-UTwente organization on GitHub in order to push to the default location. If you want to change the registry, account or name of the image being pushed, please refer to the GitHub packages repository and Docker documentation.
+
+> WARNING: Please triple check if images function correctly before pushing them, and that you haven't accidentally exposed any sensitive information or credentials in the image. 
+
+You should then be able to push images as per the instructions, or simply using: 
+
+```
+docker compose build
+docker compose push
+```
+
+### Deployment
+
+After an image has been pushed, Grensesnitt has to deploy the new image in their environment. Time to send an email! 
